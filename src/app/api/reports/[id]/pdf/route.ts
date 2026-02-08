@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
@@ -10,7 +9,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const reportPath = type === "b" ? `/report-b/${params.id}` : `/report-a/${params.id}`;
   const reportUrl = token ? `${baseUrl}${reportPath}?token=${token}` : `${baseUrl}${reportPath}`;
 
-  const browser = await chromium.launch();
+  const isVercel = Boolean(process.env.VERCEL);
+
+  const { chromium: playwrightChromium } = await import("playwright-core");
+  const chromium = (await import("@sparticuz/chromium")).default as any;
+
+  const executablePath = isVercel ? await chromium.executablePath() : undefined;
+
+  const browser = await playwrightChromium.launch({
+    args: isVercel ? chromium.args : [],
+    executablePath,
+    headless: true
+  });
+
   const page = await browser.newPage();
   await page.goto(reportUrl, { waitUntil: "networkidle" });
 

@@ -5,6 +5,9 @@ const nextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "**" }
     ]
+  },
+  experimental: {
+    serverComponentsExternalPackages: ["playwright", "playwright-core", "@sparticuz/chromium"]
   }
 };
 
