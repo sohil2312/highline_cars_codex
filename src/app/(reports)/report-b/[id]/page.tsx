@@ -96,13 +96,13 @@ export default async function ReportBPage({
           <div>
             <p className="text-sm text-neutral-600">Top Major Issues</p>
             <ul className="list-disc pl-4 text-sm">
-              {topMajor.length > 0 ? topMajor.map((item) => <li key={item}>{item}</li>) : <li>None</li>}
+              {topMajor.length > 0 ? topMajor.map((item: string) => <li key={item}>{item}</li>) : <li>None</li>}
             </ul>
           </div>
           <div>
             <p className="text-sm text-neutral-600">Top Minor Issues</p>
             <ul className="list-disc pl-4 text-sm">
-              {topMinor.length > 0 ? topMinor.map((item) => <li key={item}>{item}</li>) : <li>None</li>}
+              {topMinor.length > 0 ? topMinor.map((item: string) => <li key={item}>{item}</li>) : <li>None</li>}
             </ul>
           </div>
         </div>
