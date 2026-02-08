@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  const version = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -81,6 +82,7 @@ export default function LoginPage() {
             Contact admin
           </Link>
         </div>
+        <p className="text-xs text-neutral-500">Version: {version}</p>
       </div>
     </main>
   );
