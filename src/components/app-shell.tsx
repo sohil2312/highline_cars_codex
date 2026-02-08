@@ -11,7 +11,7 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-white">
-      <header className="brutal-border flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <header className="brutal-border flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-xs uppercase tracking-widest">Highline Cars</p>
           <h1 className="text-lg font-semibold">Inspection Console</h1>
@@ -25,9 +25,23 @@ export function AppShell({
           </Link>
           <SignOutButton />
         </div>
+        <nav className="flex w-full gap-2 overflow-x-auto text-sm md:hidden">
+          <Link href="/dashboard" className="brutal-border px-3 py-1 whitespace-nowrap">
+            Dashboard
+          </Link>
+          <Link href="/inspections/new" className="brutal-border px-3 py-1 whitespace-nowrap">
+            New Inspection
+          </Link>
+          <Link href="/dashboard" className="brutal-border px-3 py-1 whitespace-nowrap">
+            Templates
+          </Link>
+          <Link href="/dashboard" className="brutal-border px-3 py-1 whitespace-nowrap">
+            Branding
+          </Link>
+        </nav>
       </header>
       <div className="grid gap-4 p-4 md:grid-cols-[220px_1fr]">
-        <aside className="brutal-border p-4">
+        <aside className="brutal-border hidden p-4 md:block">
           <nav className="space-y-2 text-sm">
             <Link href="/dashboard" className="block underline">
               Dashboard

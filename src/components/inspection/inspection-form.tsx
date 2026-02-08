@@ -1051,7 +1051,7 @@ export function InspectionForm({
                                     });
                                   }}
                                 >
-                                  <SelectTrigger className="w-[120px]">
+                                  <SelectTrigger className="w-full sm:w-[120px]">
                                     <SelectValue placeholder="Status" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1066,7 +1066,7 @@ export function InspectionForm({
                                   value={state.workDone}
                                   onValueChange={(value) => updateItem(item.id, { workDone: value })}
                                 >
-                                  <SelectTrigger className="w-[180px]">
+                                  <SelectTrigger className="w-full sm:w-[180px]">
                                     <SelectValue placeholder="Work Done" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1083,7 +1083,7 @@ export function InspectionForm({
                                     updateItem(item.id, { costSeverity: Number(value) as CostSeverity })
                                   }
                                 >
-                                  <SelectTrigger className="w-[160px]">
+                                  <SelectTrigger className="w-full sm:w-[160px]">
                                     <SelectValue placeholder="Severity" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1099,7 +1099,7 @@ export function InspectionForm({
                                     value={state.treadDepth ?? ""}
                                     onValueChange={(value) => updateItem(item.id, { treadDepth: value })}
                                   >
-                                    <SelectTrigger className="w-[140px]">
+                                    <SelectTrigger className="w-full sm:w-[140px]">
                                       <SelectValue placeholder="Tread" />
                                     </SelectTrigger>
                                     <SelectContent>

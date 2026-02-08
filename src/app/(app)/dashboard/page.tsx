@@ -63,11 +63,11 @@ export default async function DashboardPage({
       </div>
 
       <Card className="p-4">
-        <form className="grid gap-3 md:grid-cols-4">
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Input name="q" placeholder="Search reg/VIN/customer" defaultValue={q} />
           <Input name="from" type="date" defaultValue={from} />
           <Input name="to" type="date" defaultValue={to} />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <select
               name="rec"
               defaultValue={rec ?? ""}
