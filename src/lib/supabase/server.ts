@@ -15,14 +15,12 @@ export function createClient() {
         },
         set(name: string, value: string, options: any) {
           if (canSet) {
-            // @ts-expect-error - set is available in route handlers/actions
-            cookieStore.set({ name, value, ...options });
+            (cookieStore as any).set({ name, value, ...options });
           }
         },
         remove(name: string, options: any) {
           if (canSet) {
-            // @ts-expect-error - set is available in route handlers/actions
-            cookieStore.set({ name, value: "", ...options });
+            (cookieStore as any).set({ name, value: "", ...options });
           }
         }
       }

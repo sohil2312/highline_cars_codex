@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
 
+export const runtime = "nodejs";
+
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const type = request.nextUrl.searchParams.get("type") ?? "a";
   const token = request.nextUrl.searchParams.get("token");
@@ -23,7 +25,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   await browser.close();
 
-  return new NextResponse(pdf, {
+  const body = new Uint8Array(pdf);
+
+  return new NextResponse(body, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename=inspection-${params.id}.pdf`
