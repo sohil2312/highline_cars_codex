@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  border-color: #000;
+}
+
+body {
+  @apply bg-background text-foreground font-sans;
+  -webkit-font-smoothing: antialiased;
+}
+
+.brutal-border {
+  @apply border-2 border-black;
+}
+
+.brutal-card {
+  @apply brutal-border bg-white;
+  box-shadow: 6px 6px 0 #000;
+}
+
+.brutal-input {
+  @apply brutal-border rounded-none bg-white px-3 py-2 text-base outline-none;
+}
+
+.status-ok {
+  @apply bg-ok text-white;
+}
+
+.status-minor {
+  @apply bg-minor text-black;
+}
+
+.status-major {
+  @apply bg-major text-white;
+}
+
+.status-na {
+  @apply bg-neutral-200 text-black;
+}
+
+.report-page {
+  @apply bg-white text-black;
+}
+
+.report-section {
+  @apply brutal-border p-4;
+}
+
+.report-table th,
+.report-table td {
+  @apply brutal-border px-2 py-1 text-sm;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+}
