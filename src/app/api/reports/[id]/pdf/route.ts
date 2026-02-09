@@ -15,14 +15,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const isVercel = Boolean(process.env.VERCEL);
   const executablePath = isVercel ? await chromium.executablePath() : process.env.CHROME_EXECUTABLE_PATH;
 
-  const browser = await puppeteer.launch({
-    args: isVercel ? chromium.args : ["--no-sandbox", "--disable-setuid-sandbox"],
-    executablePath,
-    headless: true,
-    defaultViewport: chromium.defaultViewport
-  });
-
+  let browser: puppeteer.Browser | null = null;
   try {
+    browser = await puppeteer.launch({
+      args: isVercel ? chromium.args : ["--no-sandbox", "--disable-setuid-sandbox"],
+      executablePath,
+      headless: true,
+      defaultViewport: chromium.defaultViewport
+    });
+
     const page = await browser.newPage();
     const cookie = request.headers.get("cookie");
     if (cookie) {
@@ -47,8 +48,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     });
   } catch (error) {
     console.error("PDF generation error:", error);
-    return NextResponse.json({ error: "PDF_GENERATION_FAILED" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "PDF_GENERATION_FAILED",
+        detail: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
   }
 }
