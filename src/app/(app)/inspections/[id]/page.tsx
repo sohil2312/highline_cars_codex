@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
-import { formatCurrency, formatDate } from "@/lib/format";
-
-const recVariant = (value?: string | null) => {
-  if (value === "YES") return "ok";
-  if (value === "NO") return "major";
-  if (value === "CAUTION") return "minor";
-  return "outline";
-};
+import { formatDate } from "@/lib/format";
 
 export default async function InspectionDetailPage({
   params
@@ -60,16 +52,12 @@ export default async function InspectionDetailPage({
         <Card className="p-4">
           <p className="text-sm text-neutral-600">Health Score</p>
           <p className="text-2xl font-semibold">{inspection.health_score ?? "—"}</p>
-          <Badge variant={recVariant(inspection.recommendation)} className="mt-2">
-            {inspection.recommendation ?? "—"}
-          </Badge>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-neutral-600">Repair Exposure</p>
-          <p className="text-2xl font-semibold">{inspection.exposure_percent ?? "—"}%</p>
-          <p className="text-sm">
-            {formatCurrency(inspection.total_repair_min)} – {formatCurrency(inspection.total_repair_max)}
-          </p>
+          <p className="text-sm text-neutral-600">Status</p>
+          <p className="text-2xl font-semibold">{inspection.status}</p>
+          <p className="text-sm text-neutral-600">Updated</p>
+          <p className="text-sm">{formatDate(inspection.updated_at)}</p>
         </Card>
       </div>
 

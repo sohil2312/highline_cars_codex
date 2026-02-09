@@ -24,6 +24,8 @@ create table if not exists inspections (
   customer_phone text,
   inspection_city text,
   notes text,
+  rc_front_path text,
+  rc_back_path text,
   airbags_count int,
   abs_present boolean,
   market_value numeric,

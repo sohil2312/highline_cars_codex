@@ -11,12 +11,12 @@ const Switch = React.forwardRef<
   <SwitchPrimitive.Root
     ref={ref}
     className={cn(
-      "relative inline-flex h-6 w-11 items-center brutal-border bg-white",
+      "relative inline-flex h-7 w-12 items-center brutal-border bg-white transition-colors data-[state=checked]:bg-accent",
       className
     )}
     {...props}
   >
-    <SwitchPrimitive.Thumb className="block h-4 w-4 translate-x-1 bg-black transition data-[state=checked]:translate-x-6" />
+    <SwitchPrimitive.Thumb className="block h-5 w-5 translate-x-1 bg-black transition data-[state=checked]:translate-x-6" />
   </SwitchPrimitive.Root>
 ));
 Switch.displayName = SwitchPrimitive.Root.displayName;

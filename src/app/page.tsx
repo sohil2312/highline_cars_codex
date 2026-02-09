@@ -37,9 +37,9 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-white p-4 md:p-8">
+    <main className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-md space-y-6">
-        <div className="brutal-card p-6">
+        <div className="brutal-card bg-accentSoft p-6">
           <h1 className="text-2xl font-semibold">Highline Cars</h1>
           <p className="mt-2 text-sm text-neutral-700">
             Inspector login for pre-purchase vehicle inspections.

@@ -7,11 +7,13 @@ export function MediaButton({
   label,
   accept,
   multiple,
+  capture,
   onFiles
 }: {
   label: string;
   accept: string;
   multiple?: boolean;
+  capture?: "environment" | "user";
   onFiles: (files: File[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -23,6 +25,7 @@ export function MediaButton({
         type="file"
         accept={accept}
         multiple={multiple}
+        capture={capture}
         className="hidden"
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);

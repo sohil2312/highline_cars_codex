@@ -15,7 +15,6 @@ import { defaultChecklist, workDoneOptions } from "@/lib/templates";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage, isVideo } from "@/lib/media";
 import { computeScore, getSuggestedSeverity } from "@/lib/scoring";
-import { formatCurrency } from "@/lib/format";
 import type { ChecklistStatus, CostSeverity } from "@/lib/types";
 import { MediaButton } from "@/components/inspection/media-button";
 
@@ -23,13 +22,18 @@ const statusOptions: ChecklistStatus[] = ["OK", "MINOR", "MAJOR", "NA"];
 
 const treadDepthOptions = ["7mm+", "5-6mm", "3-4mm", "<2mm"];
 
-const severityOptions: { value: CostSeverity; label: string }[] = [
-  { value: 0, label: "0 - No Repair" },
-  { value: 1, label: "1 - Low" },
-  { value: 2, label: "2 - Medium" },
-  { value: 3, label: "3 - High" },
-  { value: 4, label: "4 - Critical" }
-];
+const damageMapPositions: Record<string, { x: number; y: number }> = {
+  "front-bumper": { x: 50, y: 12 },
+  bonnet: { x: 50, y: 24 },
+  roof: { x: 50, y: 48 },
+  "rear-bumper": { x: 50, y: 84 },
+  "door-lf": { x: 25, y: 40 },
+  "door-rf": { x: 75, y: 40 },
+  "door-lr": { x: 25, y: 62 },
+  "door-rr": { x: 75, y: 62 },
+  "lhs-quarter": { x: 20, y: 74 },
+  "rhs-quarter": { x: 80, y: 74 }
+};
 
 type VehicleForm = {
   vehicle_reg_no: string;
@@ -161,6 +165,8 @@ export function InspectionForm({
   const [vehicle, setVehicle] = useState<VehicleForm>(initialVehicle);
   const [legal, setLegal] = useState<LegalForm>(initialLegal);
   const [marketValue, setMarketValue] = useState<string>("");
+  const [rcFront, setRcFront] = useState<MediaEntry | null>(null);
+  const [rcBack, setRcBack] = useState<MediaEntry | null>(null);
   const [items, setItems] = useState<Record<string, ItemState>>(createInitialItems);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -208,6 +214,28 @@ export function InspectionForm({
         abs_present: data.abs_present === null || data.abs_present === undefined ? "" : data.abs_present ? "yes" : "no"
       });
       setMarketValue(data.market_value?.toString() ?? "");
+
+      if (data.rc_front_path) {
+        const { data: publicData } = supabase.storage
+          .from("inspection-media")
+          .getPublicUrl(data.rc_front_path);
+        setRcFront({
+          url: publicData.publicUrl,
+          type: "photo",
+          path: data.rc_front_path
+        });
+      }
+
+      if (data.rc_back_path) {
+        const { data: publicData } = supabase.storage
+          .from("inspection-media")
+          .getPublicUrl(data.rc_back_path);
+        setRcBack({
+          url: publicData.publicUrl,
+          type: "photo",
+          path: data.rc_back_path
+        });
+      }
 
       const legalRow = data.inspection_legal?.[0];
       if (legalRow) {
@@ -303,6 +331,19 @@ export function InspectionForm({
     return counts;
   }, [items]);
 
+  const damageMarkers = useMemo(() => {
+    return Object.entries(items)
+      .filter(
+        ([itemId, state]) =>
+          (state.status === "MINOR" || state.status === "MAJOR") && Boolean(damageMapPositions[itemId])
+      )
+      .map(([itemId, state]) => ({
+        id: itemId,
+        status: state.status,
+        ...damageMapPositions[itemId]
+      }));
+  }, [items]);
+
   const markDirty = () => {
     setMessage(null);
   };
@@ -371,6 +412,8 @@ export function InspectionForm({
       airbags_count: vehicle.airbags_count ? Number(vehicle.airbags_count) : null,
       abs_present: vehicle.abs_present ? vehicle.abs_present === "yes" : null,
       market_value: marketValue ? Number(marketValue) : null,
+      rc_front_path: rcFront?.path ?? null,
+      rc_back_path: rcBack?.path ?? null,
       health_score: scoreOutput.healthScore,
       recommendation: scoreOutput.recommendation,
       exposure_percent: scoreOutput.exposurePercent,
@@ -393,7 +436,7 @@ export function InspectionForm({
     setInspectionId(data.id);
     setInspectionCode(data.inspection_code);
     return data.id as string;
-  }, [inspectionId, inspectionCode, vehicle, marketValue, scoreOutput]);
+  }, [inspectionId, inspectionCode, vehicle, marketValue, scoreOutput, rcFront?.path, rcBack?.path]);
 
   const saveDraft = useCallback(
     async (nextStatus: "Draft" | "Final" = "Draft") => {
@@ -425,6 +468,8 @@ export function InspectionForm({
         airbags_count: vehicle.airbags_count ? Number(vehicle.airbags_count) : null,
         abs_present: vehicle.abs_present ? vehicle.abs_present === "yes" : null,
         market_value: marketValue ? Number(marketValue) : null,
+        rc_front_path: rcFront?.path ?? null,
+        rc_back_path: rcBack?.path ?? null,
         health_score: scoreOutput.healthScore,
         recommendation: scoreOutput.recommendation,
         exposure_percent: scoreOutput.exposurePercent,
@@ -504,7 +549,7 @@ export function InspectionForm({
       setSaving(false);
       setMessage(nextStatus === "Final" ? "Inspection finalized." : "Draft saved.");
     },
-    [ensureInspection, items, legal, marketValue, scoreOutput, vehicle]
+    [ensureInspection, items, legal, marketValue, scoreOutput, vehicle, rcFront?.path, rcBack?.path]
   );
 
   useEffect(() => {
@@ -612,6 +657,70 @@ export function InspectionForm({
       });
     }
   };
+
+  const handleRcUpload = async (side: "front" | "back", files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+
+    const supabase = createClient();
+    const id = await ensureInspection();
+    if (!id) return;
+
+    const processed = await compressImage(file, 2000, 0.85);
+    const path = `${id}/rc/${side}-${Date.now()}-${processed.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("inspection-media")
+      .upload(path, processed, { upsert: true });
+
+    if (uploadError) {
+      setMessage(uploadError.message);
+      return;
+    }
+
+    await supabase
+      .from("inspections")
+      .update(side === "front" ? { rc_front_path: path } : { rc_back_path: path })
+      .eq("id", id);
+
+    const { data: publicData } = supabase.storage
+      .from("inspection-media")
+      .getPublicUrl(path);
+
+    if (side === "front") {
+      setRcFront({ url: publicData.publicUrl, type: "photo", path });
+    } else {
+      setRcBack({ url: publicData.publicUrl, type: "photo", path });
+    }
+  };
+
+  const fetchRtoData = async () => {
+    setMessage(null);
+    if (!vehicle.vehicle_reg_no) {
+      setMessage("Enter registration number to fetch RTO data.");
+      return;
+    }
+
+    const res = await fetch(`/api/rto?reg=${encodeURIComponent(vehicle.vehicle_reg_no)}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMessage(data.message ?? "RTO integration not configured.");
+      return;
+    }
+
+    const data = await res.json();
+    setVehicle((prev) => ({
+      ...prev,
+      make: data.make ?? prev.make,
+      model: data.model ?? prev.model,
+      variant: data.variant ?? prev.variant,
+      year_of_manufacture: data.year_of_manufacture ? String(data.year_of_manufacture) : prev.year_of_manufacture,
+      fuel_type: data.fuel_type ?? prev.fuel_type,
+      color: data.color ?? prev.color,
+      owners_count: data.owners_count ?? prev.owners_count
+    }));
+  };
+
 
   const createShare = async () => {
     const supabase = createClient();
@@ -821,6 +930,45 @@ export function InspectionForm({
                   onChange={(event) => setVehicle((prev) => ({ ...prev, notes: event.target.value }))}
                 />
               </div>
+              <div className="md:col-span-2">
+                <div className="brutal-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">RC Scan / RTO Fetch</p>
+                      <p className="text-xs text-neutral-600">Upload RC front & back or fetch from RTO.</p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={fetchRtoData}>
+                      Fetch from RTO
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="text-xs text-neutral-600">RC Front</p>
+                      <MediaButton
+                        label="Scan Front"
+                        accept="image/*"
+                        capture="environment"
+                        onFiles={(files) => handleRcUpload("front", files)}
+                      />
+                      {rcFront ? (
+                        <img src={rcFront.url} alt="RC Front" className="h-32 w-full object-cover brutal-border" />
+                      ) : null}
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs text-neutral-600">RC Back</p>
+                      <MediaButton
+                        label="Scan Back"
+                        accept="image/*"
+                        capture="environment"
+                        onFiles={(files) => handleRcUpload("back", files)}
+                      />
+                      {rcBack ? (
+                        <img src={rcBack.url} alt="RC Back" className="h-32 w-full object-cover brutal-border" />
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </Card>
         </TabsContent>
@@ -1006,7 +1154,7 @@ export function InspectionForm({
         </TabsContent>
 
         <TabsContent value="checklist">
-          <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-3 brutal-border bg-white p-3">
+          <div className="sticky top-0 z-10 mb-3 flex flex-wrap items-center gap-3 brutal-border bg-accentSoft p-3">
             <Badge variant="ok">OK: {statusCounts.OK}</Badge>
             <Badge variant="minor">MINOR: {statusCounts.MINOR}</Badge>
             <Badge variant="major">MAJOR: {statusCounts.MAJOR}</Badge>
@@ -1077,23 +1225,6 @@ export function InspectionForm({
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                <Select
-                                  value={String(state.costSeverity)}
-                                  onValueChange={(value) =>
-                                    updateItem(item.id, { costSeverity: Number(value) as CostSeverity })
-                                  }
-                                >
-                                  <SelectTrigger className="w-full sm:w-[160px]">
-                                    <SelectValue placeholder="Severity" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {severityOptions.map((option) => (
-                                      <SelectItem key={option.value} value={String(option.value)}>
-                                        {option.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
                                 {item.id.startsWith("tyre-") ? (
                                   <Select
                                     value={state.treadDepth ?? ""}
@@ -1120,16 +1251,26 @@ export function InspectionForm({
                                 onChange={(event) => updateItem(item.id, { notes: event.target.value })}
                               />
                               <div className="flex flex-col gap-2">
-                                <MediaButton
-                                  label="Upload Photos"
-                                  accept="image/*"
-                                  multiple
-                                  onFiles={(files) => handleUpload(item.id, files)}
-                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <MediaButton
+                                    label="Camera"
+                                    accept="image/*"
+                                    multiple
+                                    capture="environment"
+                                    onFiles={(files) => handleUpload(item.id, files)}
+                                  />
+                                  <MediaButton
+                                    label="Gallery"
+                                    accept="image/*"
+                                    multiple
+                                    onFiles={(files) => handleUpload(item.id, files)}
+                                  />
+                                </div>
                                 {item.allowVideo ? (
                                   <MediaButton
-                                    label="Engine Video"
+                                    label="Record Video"
                                     accept="video/*"
+                                    capture="environment"
                                     onFiles={(files) => handleUpload(item.id, files)}
                                   />
                                 ) : null}
@@ -1162,67 +1303,53 @@ export function InspectionForm({
 
         <TabsContent value="summary">
           <Card className="p-4 space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
-              <div>
-                <label className="text-sm font-medium">Market Value (₹)</label>
-                <Input
-                  type="number"
-                  value={marketValue}
-                  onChange={(event) => setMarketValue(event.target.value)}
-                />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="brutal-border p-3">
+                <p className="text-sm text-neutral-600">Health Score</p>
+                <p className="text-xl font-semibold">{scoreOutput.healthScore}</p>
               </div>
               <div className="brutal-border p-3">
-                <p className="text-sm text-neutral-600">Repair Range</p>
-                <p className="text-xl font-semibold">
-                  {formatCurrency(scoreOutput.totalRepairMin)} – {formatCurrency(scoreOutput.totalRepairMax)}
-                </p>
-              </div>
-              <div className="brutal-border p-3">
-                <p className="text-sm text-neutral-600">Exposure %</p>
-                <p className="text-xl font-semibold">{scoreOutput.exposurePercent}%</p>
+                <p className="text-sm text-neutral-600">Checklist Counts</p>
+                <p className="text-sm">OK {statusCounts.OK} • Minor {statusCounts.MINOR} • Major {statusCounts.MAJOR} • NA {statusCounts.NA}</p>
               </div>
             </div>
             <div className="brutal-border p-3">
-              <p className="text-sm text-neutral-600">Health Score</p>
-              <p className="text-xl font-semibold">{scoreOutput.healthScore}</p>
+              <p className="text-sm text-neutral-600">Damage Map</p>
+              <div className="relative mt-2 h-40 brutal-border bg-white">
+                <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100">
+                  <rect x="20" y="10" width="60" height="80" fill="none" stroke="black" strokeWidth="2" />
+                  <rect x="30" y="18" width="40" height="12" fill="none" stroke="black" strokeWidth="1" />
+                  <rect x="30" y="70" width="40" height="12" fill="none" stroke="black" strokeWidth="1" />
+                </svg>
+                {damageMarkers.map((marker) => (
+                  <span
+                    key={marker.id}
+                    className={marker.status === "MAJOR" ? "status-major" : "status-minor"}
+                    style={{
+                      position: "absolute",
+                      left: `${marker.x}%`,
+                      top: `${marker.y}%`,
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "999px",
+                      transform: "translate(-50%, -50%)",
+                      border: "2px solid #000"
+                    }}
+                  />
+                ))}
+              </div>
             </div>
             <div className="brutal-border p-3">
-              <p className="text-sm text-neutral-600">Recommendation</p>
-              <Badge
-                variant={
-                  scoreOutput.recommendation === "YES"
-                    ? "ok"
-                    : scoreOutput.recommendation === "NO"
-                    ? "major"
-                    : "minor"
-                }
-                className="mt-2"
-              >
-                {scoreOutput.recommendation}
-              </Badge>
-              {scoreOutput.recommendationReasons.length > 0 ? (
+              <p className="text-sm text-neutral-600">Critical Flags</p>
+              {scoreOutput.caps.length > 0 ? (
                 <ul className="mt-2 list-disc pl-4 text-sm text-neutral-700">
-                  {scoreOutput.recommendationReasons.map((reason) => (
+                  {scoreOutput.caps.map((reason) => (
                     <li key={reason}>{reason}</li>
                   ))}
                 </ul>
-              ) : null}
-            </div>
-            <div className="brutal-border p-3">
-              <p className="text-sm text-neutral-600">Category Breakdown</p>
-              <div className="mt-2 grid gap-2 text-sm">
-                {Object.entries(scoreOutput.categoryTotals).map(([category, totals]) => (
-                  <div key={category} className="flex justify-between">
-                    <span className="capitalize">{category}</span>
-                    <span>
-                      {formatCurrency(totals.min)} – {formatCurrency(totals.max)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-xs text-neutral-600">
-                Estimates are indicative ranges based on visible inspection; actual costs may vary.
-              </p>
+              ) : (
+                <p className="text-sm text-neutral-600">None</p>
+              )}
             </div>
           </Card>
         </TabsContent>
@@ -1260,7 +1387,7 @@ export function InspectionForm({
         </TabsContent>
       </Tabs>
 
-      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 brutal-border bg-white p-3">
+      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 brutal-border bg-accentSoft p-3">
         <span className="text-sm text-neutral-600">
           {lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString()}` : "Not saved yet"}
         </span>

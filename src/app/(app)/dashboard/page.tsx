@@ -4,32 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { requireUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
-
-const recommendationVariant = (value?: string | null) => {
-  if (value === "YES") return "ok";
-  if (value === "NO") return "major";
-  if (value === "CAUTION") return "minor";
-  return "outline";
-};
+import { InspectorProfile } from "@/components/profile/inspector-profile";
 
 export default async function DashboardPage({
   searchParams
 }: {
-  searchParams?: { q?: string; from?: string; to?: string; rec?: string };
+  searchParams?: { q?: string; from?: string; to?: string };
 }) {
   const { supabase, user } = await requireUser();
 
   const q = searchParams?.q?.trim();
   const from = searchParams?.from;
   const to = searchParams?.to;
-  const rec = searchParams?.rec;
 
   let query = supabase
     .from("inspections")
-    .select("id, inspection_code, vehicle_reg_no, make, model, created_at, health_score, recommendation, status")
+    .select("id, inspection_code, vehicle_reg_no, make, model, created_at, health_score, status")
     .order("created_at", { ascending: false });
 
   if (q) {
@@ -47,10 +39,6 @@ export default async function DashboardPage({
     query = query.lte("created_at", toDate.toISOString());
   }
 
-  if (rec) {
-    query = query.eq("recommendation", rec);
-  }
-
   const { data: inspections } = await query;
 
   return (
@@ -62,28 +50,44 @@ export default async function DashboardPage({
         </Link>
       </div>
 
+      <InspectorProfile />
+
       <Card className="p-4">
-        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Input name="q" placeholder="Search reg/VIN/customer" defaultValue={q} />
           <Input name="from" type="date" defaultValue={from} />
           <Input name="to" type="date" defaultValue={to} />
           <div className="flex flex-wrap gap-2">
-            <select
-              name="rec"
-              defaultValue={rec ?? ""}
-              className="brutal-input w-full"
-            >
-              <option value="">All Recommendations</option>
-              <option value="YES">YES</option>
-              <option value="CAUTION">CAUTION</option>
-              <option value="NO">NO</option>
-            </select>
             <Button type="submit" variant="outline">Filter</Button>
           </div>
         </form>
       </Card>
 
-      <Table>
+      <div className="grid gap-3 md:hidden">
+        {inspections && inspections.length > 0 ? (
+          inspections.map((row) => (
+            <Card key={row.id} className="p-4">
+              <div className="flex items-center justify-between">
+                <Link className="underline text-sm" href={`/inspections/${row.id}`}>
+                  {row.inspection_code ?? row.id.slice(0, 8)}
+                </Link>
+                <span className="text-xs text-neutral-600">{formatDate(row.created_at)}</span>
+              </div>
+              <p className="mt-2 text-sm text-neutral-600">Reg No</p>
+              <p className="text-base">{row.vehicle_reg_no ?? "—"}</p>
+              <p className="mt-2 text-sm text-neutral-600">Make/Model</p>
+              <p className="text-base">{[row.make, row.model].filter(Boolean).join(" ") || "—"}</p>
+              <p className="mt-2 text-sm text-neutral-600">Health Score</p>
+              <p className="text-base">{row.health_score ?? "—"}</p>
+            </Card>
+          ))
+        ) : (
+          <Card className="p-4 text-sm text-neutral-600">No inspections yet.</Card>
+        )}
+      </div>
+
+      <div className="hidden md:block">
+        <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Inspection ID</TableHead>
@@ -91,11 +95,10 @@ export default async function DashboardPage({
             <TableHead>Make/Model</TableHead>
             <TableHead>Date</TableHead>
             <TableHead>Health</TableHead>
-            <TableHead>Recommendation</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
           {inspections && inspections.length > 0 ? (
             inspections.map((row) => (
               <TableRow key={row.id}>
@@ -108,23 +111,19 @@ export default async function DashboardPage({
                 <TableCell>{[row.make, row.model].filter(Boolean).join(" ") || "—"}</TableCell>
                 <TableCell>{formatDate(row.created_at)}</TableCell>
                 <TableCell>{row.health_score ?? "—"}</TableCell>
-                <TableCell>
-                  <Badge variant={recommendationVariant(row.recommendation)}>
-                    {row.recommendation ?? "—"}
-                  </Badge>
-                </TableCell>
                 <TableCell>{row.status}</TableCell>
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-sm text-neutral-600">
+              <TableCell colSpan={6} className="text-center text-sm text-neutral-600">
                 No inspections yet.
               </TableCell>
             </TableRow>
           )}
         </TableBody>
-      </Table>
+        </Table>
+      </div>
     </AppShell>
   );
 }

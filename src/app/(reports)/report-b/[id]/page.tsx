@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getInspectionWithDetails, getShareByToken } from "@/lib/data";
 import { getUser } from "@/lib/auth";
-import { formatCurrency } from "@/lib/format";
 import { defaultChecklist } from "@/lib/templates";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -66,8 +66,19 @@ export default async function ReportBPage({
     })
   );
 
+  const backUrl = token ? `/r/${token}` : `/inspections/${inspection.id}`;
+  const pdfUrl = `/api/reports/${inspection.id}/pdf?type=b${token ? `&token=${token}` : ""}`;
+
   return (
     <div className="report-page p-6 space-y-6">
+      <div className="flex items-center justify-between text-sm">
+        <Link href={backUrl} className="underline">Back</Link>
+        {allowPdf ? (
+          <Link href={pdfUrl} className="underline">Download PDF</Link>
+        ) : (
+          <span className="text-neutral-500">PDF disabled</span>
+        )}
+      </div>
       <header className="report-section">
         <h1 className="text-2xl font-semibold">Highline Cars Customer Report</h1>
         <p className="text-sm">Inspection ID: {inspection.inspection_code ?? inspection.id}</p>
@@ -79,14 +90,12 @@ export default async function ReportBPage({
           <p className="text-3xl font-semibold">{inspection.health_score ?? "—"}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-neutral-600">Recommendation</p>
-          <Badge variant={inspection.recommendation === "YES" ? "ok" : inspection.recommendation === "NO" ? "major" : "minor"} className="mt-2">
-            {inspection.recommendation ?? "—"}
-          </Badge>
+          <p className="text-sm text-neutral-600">Inspection Status</p>
+          <p className="text-xl font-semibold">{inspection.status}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-neutral-600">Repair Estimate</p>
-          <p className="text-xl font-semibold">{formatCurrency(inspection.total_repair_min)} – {formatCurrency(inspection.total_repair_max)}</p>
+          <p className="text-sm text-neutral-600">Checklist Summary</p>
+          <p className="text-sm">Major {majorItems.length} • Minor {minorItems.length}</p>
         </Card>
       </section>
 
@@ -145,9 +154,6 @@ export default async function ReportBPage({
         </div>
       </section>
 
-      <footer className="text-xs text-neutral-600">
-        {!allowPdf ? "PDF download disabled" : ""}
-      </footer>
     </div>
   );
 }

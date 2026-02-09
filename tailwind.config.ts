@@ -15,8 +15,11 @@ const config: Config = {
       },
       colors: {
         border: "#000000",
-        background: "#ffffff",
+        background: "#fff7f0",
         foreground: "#000000",
+        accent: "#f97316",
+        accentSoft: "#ffe8d6",
+        accentBlue: "#0ea5e9",
         ok: "#1f9d55",
         minor: "#f59e0b",
         major: "#dc2626",
