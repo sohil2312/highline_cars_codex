@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import chromium from "@sparticuz/chromium";
-import puppeteer from "puppeteer-core";
+import puppeteer, { type Browser } from "puppeteer-core";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const isVercel = Boolean(process.env.VERCEL);
   const executablePath = isVercel ? await chromium.executablePath() : process.env.CHROME_EXECUTABLE_PATH;
 
-  let browser: puppeteer.Browser | null = null;
+  let browser: Browser | null = null;
   try {
     browser = await puppeteer.launch({
       args: isVercel ? chromium.args : ["--no-sandbox", "--disable-setuid-sandbox"],
