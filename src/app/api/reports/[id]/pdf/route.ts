@@ -30,7 +30,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (cookie) {
       await page.setExtraHTTPHeaders({ cookie });
     }
-    await page.goto(reportUrl, { waitUntil: "networkidle0", timeout: 60000 });
+    await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+    await new Promise((resolve) => setTimeout(resolve, 750));
 
     const pdf = await page.pdf({
       format: "A4",
