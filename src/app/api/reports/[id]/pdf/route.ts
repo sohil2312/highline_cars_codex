@@ -13,15 +13,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const reportUrl = token ? `${baseUrl}${reportPath}?token=${token}` : `${baseUrl}${reportPath}`;
 
   const isVercel = Boolean(process.env.VERCEL);
+  chromium.setGraphicsMode = false;
   const executablePath = isVercel ? await chromium.executablePath() : process.env.CHROME_EXECUTABLE_PATH;
 
   let browser: Browser | null = null;
   try {
+    const headlessMode = "shell" as const;
     browser = await puppeteer.launch({
-      args: isVercel ? chromium.args : ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: puppeteer.defaultArgs({ args: chromium.args, headless: headlessMode }),
       executablePath,
-      headless: true,
-      defaultViewport: chromium.defaultViewport
+      headless: headlessMode
     });
 
     const page = await browser.newPage();

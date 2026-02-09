@@ -17,7 +17,7 @@
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
-    "@sparticuz/chromium": "^119.0.0",
+    "@sparticuz/chromium": "^143.0.4",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.3",
     "class-variance-authority": "^0.7.0",
