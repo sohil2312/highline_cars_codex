@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const type = request.nextUrl.searchParams.get("type") ?? "a";
@@ -10,16 +13,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const reportUrl = token ? `${baseUrl}${reportPath}?token=${token}` : `${baseUrl}${reportPath}`;
 
   const isVercel = Boolean(process.env.VERCEL);
+  const executablePath = isVercel ? await chromium.executablePath() : process.env.CHROME_EXECUTABLE_PATH;
 
-  const { chromium: playwrightChromium } = await import("playwright-core");
-  const chromium = (await import("@sparticuz/chromium")).default as any;
-
-  const executablePath = isVercel ? await chromium.executablePath() : undefined;
-
-  const browser = await playwrightChromium.launch({
-    args: isVercel ? chromium.args : [],
+  const browser = await puppeteer.launch({
+    args: isVercel ? chromium.args : ["--no-sandbox", "--disable-setuid-sandbox"],
     executablePath,
-    headless: true
+    headless: true,
+    defaultViewport: chromium.defaultViewport
   });
 
   try {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     if (cookie) {
       await page.setExtraHTTPHeaders({ cookie });
     }
-    await page.goto(reportUrl, { waitUntil: "networkidle", timeout: 60000 });
+    await page.goto(reportUrl, { waitUntil: "networkidle0", timeout: 60000 });
 
     const pdf = await page.pdf({
       format: "A4",
@@ -39,14 +39,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       margin: { top: "24px", bottom: "36px", left: "16px", right: "16px" }
     });
 
-    const body = new Uint8Array(pdf);
-
-    return new NextResponse(body, {
+    return new NextResponse(pdf as BodyInit, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename=inspection-${params.id}.pdf`
       }
     });
+  } catch (error) {
+    console.error("PDF generation error:", error);
+    return NextResponse.json({ error: "PDF_GENERATION_FAILED" }, { status: 500 });
   } finally {
     await browser.close();
   }
