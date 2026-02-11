@@ -1,16 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import chromium from "@sparticuz/chromium";
 import puppeteer, { type Browser } from "puppeteer-core";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const type = request.nextUrl.searchParams.get("type") ?? "a";
   const token = request.nextUrl.searchParams.get("token");
+  const profile = request.nextUrl.searchParams.get("profile") ?? "full";
   const baseUrl = process.env.REPORT_BASE_URL ?? request.nextUrl.origin;
-  const reportPath = type === "b" ? `/report-b/${params.id}` : `/report-a/${params.id}`;
-  const reportUrl = token ? `${baseUrl}${reportPath}?token=${token}` : `${baseUrl}${reportPath}`;
+  const reportPath = `/report/${params.id}`;
+  const queryParts = [`profile=${profile}`];
+  if (token) queryParts.push(`token=${token}`);
+  const reportUrl = `${baseUrl}${reportPath}?${queryParts.join("&")}`;
+
+  // Fetch inspection data for filename
+  const adminClient = createAdminClient();
+  let filename = `inspection-${params.id}.pdf`;
+  if (adminClient) {
+    const { data: insp } = await adminClient
+      .from("inspections")
+      .select("make, model, created_at")
+      .eq("id", params.id)
+      .single();
+    if (insp) {
+      const brand = (insp.make || "UNKNOWN").toUpperCase().replace(/\s+/g, "");
+      const model = (insp.model || "UNKNOWN").toUpperCase().replace(/\s+/g, "");
+      const date = new Date(insp.created_at);
+      const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const { count } = await adminClient
+        .from("inspections")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", startOfDay.toISOString())
+        .lte("created_at", date.toISOString());
+      const seq = String(count ?? 1).padStart(3, "0");
+      filename = `HIGHLINECARS_${brand}_${model}_${dateStr}_${seq}.pdf`;
+    }
+  }
 
   const isVercel = Boolean(process.env.VERCEL);
   chromium.setGraphicsMode = false;
@@ -32,6 +61,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
     await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
     await new Promise((resolve) => setTimeout(resolve, 750));
+    await page.addStyleTag({ content: ".no-print { display: none !important; }" });
 
     const pdf = await page.pdf({
       format: "A4",
@@ -45,7 +75,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return new NextResponse(pdf as BodyInit, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename=inspection-${params.id}.pdf`
+        "Content-Disposition": `inline; filename=${filename}`
       }
     });
   } catch (error) {

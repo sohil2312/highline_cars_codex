@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
-import { InspectorProfile } from "@/components/profile/inspector-profile";
+
 
 export default async function DashboardPage({
   searchParams
@@ -49,8 +49,6 @@ export default async function DashboardPage({
           <Button>New Inspection</Button>
         </Link>
       </div>
-
-      <InspectorProfile />
 
       <Card className="p-4">
         <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

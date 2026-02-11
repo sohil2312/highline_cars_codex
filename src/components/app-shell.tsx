@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { SignOutButton } from "@/components/auth/signout-button";
+import { SettingsTrigger } from "@/components/settings/settings-trigger";
+import { OfflineIndicator } from "@/components/offline-indicator";
 
 export function AppShell({
   children,
@@ -20,6 +22,7 @@ export function AppShell({
           {userEmail ? (
             <span className="text-xs text-neutral-600 max-w-[180px] truncate">{userEmail}</span>
           ) : null}
+          <SettingsTrigger />
           <Link href="/inspections/new">
             <Button size="sm">New Inspection</Button>
           </Link>
@@ -40,6 +43,7 @@ export function AppShell({
           </Link>
         </nav>
       </header>
+      <OfflineIndicator />
       <div className="grid gap-4 p-4 md:grid-cols-[220px_1fr]">
         <aside className="brutal-border hidden bg-white p-4 md:block">
           <nav className="space-y-2 text-sm">

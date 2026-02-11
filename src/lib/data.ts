@@ -34,3 +34,41 @@ export async function getShareByToken(token: string, useAdmin = false) {
 
   return data ?? null;
 }
+
+export async function getCompanySettings(useAdmin = false) {
+  const client = useAdmin ? createAdminClient() : createClient();
+  if (!client) return null;
+
+  const { data } = await client
+    .from("company_settings")
+    .select("*")
+    .limit(1)
+    .single();
+
+  return data ?? null;
+}
+
+export async function getChecklistTemplates(useAdmin = false) {
+  const client = useAdmin ? createAdminClient() : createClient();
+  if (!client) return null;
+
+  const { data } = await client
+    .from("checklist_templates")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  return data ?? [];
+}
+
+export async function getChecklistTemplate(id: string, useAdmin = false) {
+  const client = useAdmin ? createAdminClient() : createClient();
+  if (!client) return null;
+
+  const { data } = await client
+    .from("checklist_templates")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  return data ?? null;
+}

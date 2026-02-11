@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
+import { RevisionHistory } from "@/components/inspection/revision-history";
 
 export default async function InspectionDetailPage({
   params
@@ -72,19 +73,25 @@ export default async function InspectionDetailPage({
       </Card>
 
       <Card className="p-4">
-        <p className="text-sm text-neutral-600">Reports</p>
+        <RevisionHistory inspectionId={params.id} />
+      </Card>
+
+      <Card className="p-4">
+        <p className="text-sm text-neutral-600">Reports & Sharing</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link href={`/report-a/${inspection.id}`}>
-            <Button>View Report A</Button>
+          <Link href={`/report/${inspection.id}?profile=full`}>
+            <Button>Full Report</Button>
           </Link>
-          <Link href={`/report-b/${inspection.id}`}>
-            <Button variant="outline">View Report B</Button>
+          <Link href={`/report/${inspection.id}?profile=customer`}>
+            <Button variant="outline">Customer View</Button>
           </Link>
-          <Link href={`/api/reports/${inspection.id}/pdf?type=a`}>
+          <Link href={`/report/${inspection.id}?profile=summary`}>
+            <Button variant="outline">Summary Only</Button>
+          </Link>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link href={`/api/reports/${inspection.id}/pdf?profile=full`} target="_blank">
             <Button variant="outline">Download PDF</Button>
-          </Link>
-          <Link href={`/inspections/new?id=${inspection.id}`}>
-            <Button variant="outline">Share Link</Button>
           </Link>
         </div>
       </Card>

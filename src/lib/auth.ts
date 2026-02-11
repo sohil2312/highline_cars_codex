@@ -15,3 +15,16 @@ export async function getUser() {
   const { data } = await supabase.auth.getUser();
   return { supabase, user: data.user ?? null };
 }
+
+export async function requireAdmin() {
+  const { supabase, user } = await requireUser();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (profile?.role !== "admin") {
+    redirect("/dashboard");
+  }
+  return { supabase, user, role: "admin" as const };
+}

@@ -14,35 +14,30 @@ import { Switch } from "@/components/ui/switch";
 import { defaultChecklist, workDoneOptions } from "@/lib/templates";
 import { createClient } from "@/lib/supabase/client";
 import { compressImage, isVideo } from "@/lib/media";
+import { saveDraftOffline } from "@/lib/offline-store";
 import { computeScore, getSuggestedSeverity } from "@/lib/scoring";
-import type { ChecklistStatus, CostSeverity } from "@/lib/types";
+import type { ChecklistStatus, CostSeverity, BodyType } from "@/lib/types";
 import { MediaButton } from "@/components/inspection/media-button";
+import { VehicleSelector } from "@/components/inspection/vehicle-selector";
+import { UploadQueueIndicator } from "@/components/inspection/upload-queue-indicator";
+import { DamageMapInteractive } from "@/components/damage-map/damage-map-interactive";
+import { bodyTypeLabels } from "@/components/damage-map/silhouettes";
 
 const statusOptions: ChecklistStatus[] = ["OK", "MINOR", "MAJOR", "NA"];
 
 const treadDepthOptions = ["7mm+", "5-6mm", "3-4mm", "<2mm"];
 
-const damageMapPositions: Record<string, { x: number; y: number }> = {
-  "front-bumper": { x: 50, y: 12 },
-  bonnet: { x: 50, y: 24 },
-  roof: { x: 50, y: 48 },
-  "rear-bumper": { x: 50, y: 84 },
-  "door-lf": { x: 25, y: 40 },
-  "door-rf": { x: 75, y: 40 },
-  "door-lr": { x: 25, y: 62 },
-  "door-rr": { x: 75, y: 62 },
-  "lhs-quarter": { x: 20, y: 74 },
-  "rhs-quarter": { x: 80, y: 74 }
-};
-
 type VehicleForm = {
+  body_type: string;
   vehicle_reg_no: string;
+  vin: string;
   make: string;
   model: string;
   variant: string;
   year_of_manufacture: string;
   mileage_km: string;
   fuel_type: string;
+  transmission: string;
   color: string;
   owners_count: string;
   customer_name: string;
@@ -85,13 +80,16 @@ type ItemState = {
 };
 
 const initialVehicle: VehicleForm = {
+  body_type: "sedan",
   vehicle_reg_no: "",
+  vin: "",
   make: "",
   model: "",
   variant: "",
   year_of_manufacture: "",
   mileage_km: "",
   fuel_type: "",
+  transmission: "",
   color: "",
   owners_count: "",
   customer_name: "",
@@ -167,12 +165,14 @@ export function InspectionForm({
   const [marketValue, setMarketValue] = useState<string>("");
   const [rcFront, setRcFront] = useState<MediaEntry | null>(null);
   const [rcBack, setRcBack] = useState<MediaEntry | null>(null);
+  const [stockPhoto, setStockPhoto] = useState<MediaEntry | null>(null);
   const [items, setItems] = useState<Record<string, ItemState>>(createInitialItems);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string>("");
   const [allowPdf, setAllowPdf] = useState(true);
+  const [shareProfile, setShareProfile] = useState<"full" | "customer" | "summary">("full");
   const [status, setStatus] = useState<"Draft" | "Final">("Draft");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -197,13 +197,16 @@ export function InspectionForm({
       setInspectionCode(data.inspection_code ?? null);
       setStatus(data.status ?? "Draft");
       setVehicle({
+        body_type: data.body_type ?? "sedan",
         vehicle_reg_no: data.vehicle_reg_no ?? "",
+        vin: (data as any).vin ?? "",
         make: data.make ?? "",
         model: data.model ?? "",
         variant: data.variant ?? "",
         year_of_manufacture: data.year_of_manufacture?.toString() ?? "",
         mileage_km: data.mileage_km?.toString() ?? "",
         fuel_type: data.fuel_type ?? "",
+        transmission: (data as any).transmission ?? "",
         color: data.color ?? "",
         owners_count: data.owners_count ?? "",
         customer_name: data.customer_name ?? "",
@@ -214,6 +217,17 @@ export function InspectionForm({
         abs_present: data.abs_present === null || data.abs_present === undefined ? "" : data.abs_present ? "yes" : "no"
       });
       setMarketValue(data.market_value?.toString() ?? "");
+
+      if ((data as any).stock_photo_path) {
+        const { data: publicData } = supabase.storage
+          .from("inspection-media")
+          .getPublicUrl((data as any).stock_photo_path);
+        setStockPhoto({
+          url: publicData.publicUrl,
+          type: "photo",
+          path: (data as any).stock_photo_path
+        });
+      }
 
       if (data.rc_front_path) {
         const { data: publicData } = supabase.storage
@@ -331,17 +345,12 @@ export function InspectionForm({
     return counts;
   }, [items]);
 
-  const damageMarkers = useMemo(() => {
-    return Object.entries(items)
-      .filter(
-        ([itemId, state]) =>
-          (state.status === "MINOR" || state.status === "MAJOR") && Boolean(damageMapPositions[itemId])
-      )
-      .map(([itemId, state]) => ({
-        id: itemId,
-        status: state.status,
-        ...damageMapPositions[itemId]
-      }));
+  const itemStatuses = useMemo(() => {
+    const map: Record<string, string | undefined> = {};
+    for (const [itemId, state] of Object.entries(items)) {
+      map[itemId] = state.status;
+    }
+    return map;
   }, [items]);
 
   const markDirty = () => {
@@ -396,13 +405,16 @@ export function InspectionForm({
     const payload = {
       inspection_code: code,
       status: "Draft",
+      body_type: vehicle.body_type || "sedan",
       vehicle_reg_no: vehicle.vehicle_reg_no || null,
+      vin: vehicle.vin || null,
       make: vehicle.make || null,
       model: vehicle.model || null,
       variant: vehicle.variant || null,
       year_of_manufacture: vehicle.year_of_manufacture ? Number(vehicle.year_of_manufacture) : null,
       mileage_km: vehicle.mileage_km ? Number(vehicle.mileage_km) : null,
       fuel_type: vehicle.fuel_type || null,
+      transmission: vehicle.transmission || null,
       color: vehicle.color || null,
       owners_count: vehicle.owners_count || null,
       customer_name: vehicle.customer_name || null,
@@ -414,6 +426,7 @@ export function InspectionForm({
       market_value: marketValue ? Number(marketValue) : null,
       rc_front_path: rcFront?.path ?? null,
       rc_back_path: rcBack?.path ?? null,
+      stock_photo_path: stockPhoto?.path ?? null,
       health_score: scoreOutput.healthScore,
       recommendation: scoreOutput.recommendation,
       exposure_percent: scoreOutput.exposurePercent,
@@ -429,6 +442,23 @@ export function InspectionForm({
       .single();
 
     if (error || !data) {
+      // Offline fallback — save to IndexedDB
+      if (!navigator.onLine) {
+        const offlineId = `offline-${Date.now()}`;
+        await saveDraftOffline({
+          id: offlineId,
+          remoteId: null,
+          vehicle: vehicle as unknown as Record<string, string>,
+          legal: legal as unknown as Record<string, string>,
+          items: items as unknown as Record<string, unknown>,
+          marketValue,
+          status: "Draft",
+          updatedAt: Date.now(),
+          synced: 0,
+        });
+        setMessage("Saved offline. Will sync when back online.");
+        return null;
+      }
       setMessage(error?.message ?? "Failed to create inspection");
       return null;
     }
@@ -436,7 +466,7 @@ export function InspectionForm({
     setInspectionId(data.id);
     setInspectionCode(data.inspection_code);
     return data.id as string;
-  }, [inspectionId, inspectionCode, vehicle, marketValue, scoreOutput, rcFront?.path, rcBack?.path]);
+  }, [inspectionId, inspectionCode, vehicle, legal, items, marketValue, scoreOutput, rcFront?.path, rcBack?.path, stockPhoto?.path]);
 
   const saveDraft = useCallback(
     async (nextStatus: "Draft" | "Final" = "Draft") => {
@@ -452,7 +482,9 @@ export function InspectionForm({
 
       const payload = {
         status: nextStatus,
+        body_type: vehicle.body_type || "sedan",
         vehicle_reg_no: vehicle.vehicle_reg_no || null,
+        vin: vehicle.vin || null,
         make: vehicle.make || null,
         model: vehicle.model || null,
         variant: vehicle.variant || null,
@@ -542,6 +574,9 @@ export function InspectionForm({
           data: { vehicle, legal, items },
           created_by: authData.user?.id ?? null
         });
+
+        // Trigger PDF pre-generation in background
+        fetch(`/api/reports/${id}/generate`, { method: "POST" }).catch(() => {});
       }
 
       setStatus(nextStatus);
@@ -549,7 +584,7 @@ export function InspectionForm({
       setSaving(false);
       setMessage(nextStatus === "Final" ? "Inspection finalized." : "Draft saved.");
     },
-    [ensureInspection, items, legal, marketValue, scoreOutput, vehicle, rcFront?.path, rcBack?.path]
+    [ensureInspection, items, legal, marketValue, scoreOutput, vehicle, rcFront?.path, rcBack?.path, stockPhoto?.path]
   );
 
   useEffect(() => {
@@ -658,6 +693,26 @@ export function InspectionForm({
     }
   };
 
+  const handleStockPhotoUpload = async (files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+    const supabase = createClient();
+    const id = await ensureInspection();
+    if (!id) return;
+    const processed = await compressImage(file, 1200, 0.85);
+    const path = `${id}/stock-photo-${Date.now()}-${processed.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("inspection-media")
+      .upload(path, processed, { upsert: true });
+    if (uploadError) {
+      setMessage(uploadError.message);
+      return;
+    }
+    await supabase.from("inspections").update({ stock_photo_path: path }).eq("id", id);
+    const { data: publicData } = supabase.storage.from("inspection-media").getPublicUrl(path);
+    setStockPhoto({ url: publicData.publicUrl, type: "photo", path });
+  };
+
   const handleRcUpload = async (side: "front" | "back", files: File[]) => {
     const file = files[0];
     if (!file) return;
@@ -730,7 +785,7 @@ export function InspectionForm({
     const token = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const { error } = await supabase
       .from("report_shares")
-      .insert({ inspection_id: id, token, allow_pdf: allowPdf });
+      .insert({ inspection_id: id, token, allow_pdf: allowPdf, profile: shareProfile });
 
     if (error) {
       setMessage(error.message);
@@ -741,9 +796,9 @@ export function InspectionForm({
     setMessage("Share link generated.");
   };
 
-  const reportLinkA = inspectionId ? `/report-a/${inspectionId}` : "#";
-  const reportLinkB = inspectionId ? `/report-b/${inspectionId}` : "#";
-  const pdfLink = inspectionId ? `/api/reports/${inspectionId}/pdf?type=a` : "#";
+  const reportLink = inspectionId ? `/report/${inspectionId}?profile=full` : "#";
+  const reportLinkCustomer = inspectionId ? `/report/${inspectionId}?profile=customer` : "#";
+  const pdfLink = inspectionId ? `/api/reports/${inspectionId}/pdf?profile=full` : "#";
 
   return (
     <>
@@ -793,26 +848,24 @@ export function InspectionForm({
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Make</label>
+                <label className="text-sm font-medium">VIN / Chassis No.</label>
                 <Input
-                  value={vehicle.make}
-                  onChange={(event) => setVehicle((prev) => ({ ...prev, make: event.target.value }))}
+                  value={vehicle.vin}
+                  placeholder="e.g. MA3FJEB1S00123456"
+                  onChange={(event) =>
+                    setVehicle((prev) => ({ ...prev, vin: event.target.value }))
+                  }
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium">Model</label>
-                <Input
-                  value={vehicle.model}
-                  onChange={(event) => setVehicle((prev) => ({ ...prev, model: event.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Variant</label>
-                <Input
-                  value={vehicle.variant}
-                  onChange={(event) => setVehicle((prev) => ({ ...prev, variant: event.target.value }))}
-                />
-              </div>
+              <VehicleSelector
+                make={vehicle.make}
+                model={vehicle.model}
+                variant={vehicle.variant}
+                onMakeChange={(value) => setVehicle((prev) => ({ ...prev, make: value }))}
+                onModelChange={(value) => setVehicle((prev) => ({ ...prev, model: value }))}
+                onVariantChange={(value) => setVehicle((prev) => ({ ...prev, variant: value }))}
+                onBodyTypeDetected={(bt) => setVehicle((prev) => ({ ...prev, body_type: bt }))}
+              />
               <div>
                 <label className="text-sm font-medium">Year of Manufacturing</label>
                 <Input
@@ -846,6 +899,25 @@ export function InspectionForm({
                     <SelectItem value="cng">CNG</SelectItem>
                     <SelectItem value="petrol-cng">Petrol + CNG</SelectItem>
                     <SelectItem value="ev">Electric</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Transmission</label>
+                <Select
+                  value={vehicle.transmission}
+                  onValueChange={(value) => setVehicle((prev) => ({ ...prev, transmission: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select transmission" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Manual</SelectItem>
+                    <SelectItem value="automatic">Automatic</SelectItem>
+                    <SelectItem value="cvt">CVT</SelectItem>
+                    <SelectItem value="dct">DCT</SelectItem>
+                    <SelectItem value="amt">AMT / AGS</SelectItem>
+                    <SelectItem value="imt">iMT</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -897,6 +969,22 @@ export function InspectionForm({
                 </Select>
               </div>
               <div>
+                <label className="text-sm font-medium">Body Type</label>
+                <Select
+                  value={vehicle.body_type || "sedan"}
+                  onValueChange={(value) => setVehicle((prev) => ({ ...prev, body_type: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select body type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(bodyTypeLabels) as [string, string][]).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <label className="text-sm font-medium">Customer Name</label>
                 <Input
                   value={vehicle.customer_name}
@@ -929,6 +1017,27 @@ export function InspectionForm({
                   value={vehicle.notes}
                   onChange={(event) => setVehicle((prev) => ({ ...prev, notes: event.target.value }))}
                 />
+              </div>
+              <div className="md:col-span-2">
+                <div className="brutal-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Vehicle Stock Photo</p>
+                      <p className="text-xs text-neutral-600">Upload a clean photo of the vehicle for the report cover page.</p>
+                    </div>
+                    <MediaButton
+                      label="Upload Photo"
+                      accept="image/*"
+                      onFiles={handleStockPhotoUpload}
+                    />
+                  </div>
+                  {stockPhoto && (
+                    <div className="mt-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={stockPhoto.url} alt="Stock Photo" className="h-40 w-full object-cover brutal-border" />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="md:col-span-2">
                 <div className="brutal-border p-3">
@@ -1314,30 +1423,11 @@ export function InspectionForm({
               </div>
             </div>
             <div className="brutal-border p-3">
-              <p className="text-sm text-neutral-600">Damage Map</p>
-              <div className="relative mt-2 h-40 brutal-border bg-white">
-                <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100">
-                  <rect x="20" y="10" width="60" height="80" fill="none" stroke="black" strokeWidth="2" />
-                  <rect x="30" y="18" width="40" height="12" fill="none" stroke="black" strokeWidth="1" />
-                  <rect x="30" y="70" width="40" height="12" fill="none" stroke="black" strokeWidth="1" />
-                </svg>
-                {damageMarkers.map((marker) => (
-                  <span
-                    key={marker.id}
-                    className={marker.status === "MAJOR" ? "status-major" : "status-minor"}
-                    style={{
-                      position: "absolute",
-                      left: `${marker.x}%`,
-                      top: `${marker.y}%`,
-                      width: "10px",
-                      height: "10px",
-                      borderRadius: "999px",
-                      transform: "translate(-50%, -50%)",
-                      border: "2px solid #000"
-                    }}
-                  />
-                ))}
-              </div>
+              <p className="text-sm text-neutral-600 mb-2">Damage Map</p>
+              <DamageMapInteractive
+                bodyType={(vehicle.body_type || "sedan") as BodyType}
+                itemStatuses={itemStatuses}
+              />
             </div>
             <div className="brutal-border p-3">
               <p className="text-sm text-neutral-600">Critical Flags</p>
@@ -1357,12 +1447,12 @@ export function InspectionForm({
         <TabsContent value="reports">
           <Card className="p-4 space-y-3">
             <div className="flex flex-wrap gap-2">
-              <Link href={reportLinkA}>
-                <Button disabled={!inspectionId}>View Report A (Dealer/Bank)</Button>
+              <Link href={reportLink}>
+                <Button disabled={!inspectionId}>View Full Report</Button>
               </Link>
-              <Link href={reportLinkB}>
+              <Link href={reportLinkCustomer}>
                 <Button variant="outline" disabled={!inspectionId}>
-                  View Report B (Customer)
+                  Customer View
                 </Button>
               </Link>
             </div>
@@ -1370,23 +1460,47 @@ export function InspectionForm({
               <Link href={pdfLink}>
                 <Button variant="outline" disabled={!inspectionId}>Download PDF</Button>
               </Link>
-              <div className="flex items-center gap-2 brutal-border p-2">
-                <Switch checked={allowPdf} onCheckedChange={setAllowPdf} />
-                <span className="text-xs">Allow PDF download</span>
-              </div>
-              <Button variant="outline" onClick={createShare} disabled={!inspectionId}>
-                Share Link
-              </Button>
             </div>
-            {shareToken ? (
-              <div className="brutal-border p-3 text-sm">
-                Share URL: {shareUrl}
+            <div className="brutal-border p-3 space-y-3">
+              <p className="text-sm font-medium">Share Link Settings</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {(["full", "customer", "summary"] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setShareProfile(p)}
+                    className={`brutal-border p-2 text-left text-xs ${shareProfile === p ? "bg-black text-white" : "bg-white"}`}
+                  >
+                    <p className="font-semibold capitalize">{p === "full" ? "Full Report" : p === "customer" ? "Customer View" : "Summary Only"}</p>
+                    <p className={shareProfile === p ? "text-neutral-300" : "text-neutral-500"}>
+                      {p === "full" ? "All sections visible" : p === "customer" ? "Hides costs & notes" : "Score & stats only"}
+                    </p>
+                  </button>
+                ))}
               </div>
-            ) : null}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 brutal-border p-2">
+                  <Switch checked={allowPdf} onCheckedChange={setAllowPdf} />
+                  <span className="text-xs">Allow PDF download</span>
+                </div>
+                <Button variant="outline" onClick={createShare} disabled={!inspectionId}>
+                  Generate Share Link
+                </Button>
+              </div>
+              {shareToken ? (
+                <div className="brutal-border p-3 text-sm break-all">
+                  <p className="text-xs text-neutral-500 mb-1">Share URL ({shareProfile})</p>
+                  <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                    {shareUrl}
+                  </a>
+                </div>
+              ) : null}
+            </div>
           </Card>
         </TabsContent>
       </Tabs>
 
+      <UploadQueueIndicator />
       <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 brutal-border bg-accentSoft p-3">
         <span className="text-sm text-neutral-600">
           {lastSavedAt ? `Last saved ${lastSavedAt.toLocaleTimeString()}` : "Not saved yet"}

@@ -38,3 +38,28 @@ export interface InspectionSummary {
   recommendation: Recommendation;
   recommendationReasons: string[];
 }
+
+export type ShareProfile = "full" | "customer" | "summary";
+
+export type BodyType = "sedan" | "suv" | "hatchback" | "coupe" | "truck" | "van" | "wagon";
+
+export type LetterGrade = "A+" | "A" | "B+" | "B" | "C+" | "C" | "D" | "F";
+
+export interface CompanySettings {
+  id: string;
+  company_name: string;
+  logo_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  version: number;
+  is_default: boolean;
+  categories: ChecklistCategory[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}

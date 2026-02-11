@@ -15,27 +15,28 @@ export default async function SharePage({ params }: { params: { token: string } 
     notFound();
   }
 
-  const reportA = `/report-a/${inspection.id}?token=${params.token}`;
-  const reportB = `/report-b/${inspection.id}?token=${params.token}`;
-  const pdfLink = `/api/reports/${inspection.id}/pdf?type=a`;
+  const profile = (share as any).profile ?? "full";
+  const reportUrl = `/report/${inspection.id}?token=${params.token}&profile=${profile}`;
+  const pdfUrl = `/api/reports/${inspection.id}/pdf?profile=${profile}&token=${params.token}`;
 
   return (
     <main className="min-h-screen bg-white p-4">
       <div className="mx-auto max-w-2xl space-y-4">
         <Card className="p-4">
-          <p className="text-xs text-neutral-600">Shared Report Token</p>
-          <h1 className="text-xl font-semibold">{params.token}</h1>
-          <p className="text-sm">View-only access to inspection report.</p>
+          <p className="text-xs text-neutral-600">Shared Inspection Report</p>
+          <h1 className="text-xl font-semibold">
+            {[inspection.make, inspection.model].filter(Boolean).join(" ") || "Vehicle Inspection"}
+          </h1>
+          <p className="text-sm text-neutral-600">
+            {inspection.inspection_code ?? inspection.id.slice(0, 8)}
+          </p>
         </Card>
         <Card className="p-4 flex flex-wrap gap-2">
-          <Link href={reportA}>
-            <Button>Open Report A</Button>
-          </Link>
-          <Link href={reportB}>
-            <Button variant="outline">Open Report B</Button>
+          <Link href={reportUrl}>
+            <Button>View Report</Button>
           </Link>
           {share.allow_pdf ? (
-            <Link href={pdfLink}>
+            <Link href={pdfUrl}>
               <Button variant="outline">Download PDF</Button>
             </Link>
           ) : null}

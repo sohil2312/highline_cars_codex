@@ -62,4 +62,16 @@ body {
   body {
     background: #ffffff !important;
   }
+  .no-print {
+    display: none !important;
+  }
+  /* Hide everything and show message when user tries Ctrl+P */
+  body::before {
+    content: "Please use the Download PDF button for best results.";
+    display: block;
+    text-align: center;
+    padding: 40px;
+    font-size: 18px;
+    font-weight: bold;
+  }
 }

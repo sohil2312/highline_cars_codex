@@ -1,0 +1,19 @@
+download pdf and back shouldnt be in downloaded pdf
+header should be proper aligned into blocks like name of company and their logo also their logo should be watermarked on every page
+option to edit company name and their logo in setting
+also option to add inspector with email id and password in setting
+dashboard shouldnt have inspector name edit option also it wasnt working due to some schema issue
+setting should have option to edit their name
+pdf should be exported like this HIGHLINECARS_{inspection_ID}
+vehicle legal summary should be in proper tabs with small image fetched from online for that car with clean background and properly aligned
+also it should have pdf ui like our discussed pattern and colorful 
+visual damage map car skeleton should be of proper model instead of squares
+checklist summary should be proper categorized to let users check througly
+while uploading image from camera or gallery it should have small view to confirm its uploaded
+also that images should be shown at proper checklist with proper alignment
+engine video sound option should be rechecked
+also it should have options to select car model via dropdown menu like first brand model version
+also it should have kilometer owner and other important info in main vehicle legal summary
+IT SHOULD STRICTLY FOLLOW CARS24 AND OTHER FAMOUS CAR INSPECTION REPORT FORMAT TO GIVE INDUSTRY STANDARD PDF OUTPUT WHICH CAN SOLVE MANY ISSUES AS ABOVE DISCUSSION
+CHECK ATLEAST 20 VARIOUS CAR INSPECTION REPORTS AND ADAPT BEST FEATURES OF THEM 
+

@@ -1,4 +1,4 @@
-import type { ChecklistStatus, CostSeverity, Recommendation, ItemType } from "@/lib/types";
+import type { ChecklistStatus, CostSeverity, Recommendation, ItemType, LetterGrade } from "@/lib/types";
 
 export interface ChecklistResult {
   categoryId: string;
@@ -250,4 +250,40 @@ export function getSuggestedSeverity(status: ChecklistStatus, itemType: ItemType
   const isHighRisk = ["APRON", "PILLAR", "QUARTER_PANEL", "STRUCTURAL_SUPPORT", "ENGINE"].includes(itemType);
   if (status === "MINOR") return isHighRisk ? 2 : 1;
   return isHighRisk ? 4 : 3;
+}
+
+export function healthScoreToGrade(score: number): LetterGrade {
+  if (score >= 95) return "A+";
+  if (score >= 90) return "A";
+  if (score >= 85) return "B+";
+  if (score >= 80) return "B";
+  if (score >= 75) return "C+";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
+}
+
+export function gradeColor(grade: LetterGrade): string {
+  if (grade === "A+" || grade === "A") return "#1f9d55";
+  if (grade === "B+" || grade === "B") return "#0ea5e9";
+  if (grade === "C+" || grade === "C") return "#f59e0b";
+  if (grade === "D") return "#f97316";
+  return "#dc2626";
+}
+
+export function deriveItemScore(status: ChecklistStatus, costSeverity: CostSeverity): number | null {
+  if (status === "NA") return null;
+  if (status === "OK") return costSeverity === 0 ? 10 : 9;
+  if (status === "MINOR") return Math.max(5, 7 - costSeverity);
+  return Math.max(1, 4 - costSeverity);
+}
+
+export function categoryAggregateScore(
+  items: Array<{ status: ChecklistStatus; costSeverity: CostSeverity }>
+): number {
+  const scores = items
+    .map((i) => deriveItemScore(i.status, i.costSeverity))
+    .filter((s): s is number => s !== null);
+  if (scores.length === 0) return 10;
+  return Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
 }
