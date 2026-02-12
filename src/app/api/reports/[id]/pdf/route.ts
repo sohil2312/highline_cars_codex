@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import chromium from "@sparticuz/chromium";
 import puppeteer, { type Browser } from "puppeteer-core";
+import { chromium as playwrightChromium } from "playwright";
+import { existsSync } from "node:fs";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+function resolveLocalChromePath() {
+  const candidates = [
+    process.env.CHROME_EXECUTABLE_PATH,
+    playwrightChromium.executablePath(),
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium"
+  ].filter(Boolean) as string[];
+
+  return candidates.find((path) => existsSync(path));
+}
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const token = request.nextUrl.searchParams.get("token");
@@ -43,15 +59,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   const isVercel = Boolean(process.env.VERCEL);
   chromium.setGraphicsMode = false;
-  const executablePath = isVercel ? await chromium.executablePath() : process.env.CHROME_EXECUTABLE_PATH;
+  const executablePath = isVercel ? await chromium.executablePath() : resolveLocalChromePath();
 
   let browser: Browser | null = null;
   try {
     const headlessMode = "shell" as const;
     browser = await puppeteer.launch({
-      args: puppeteer.defaultArgs({ args: chromium.args, headless: headlessMode }),
+      args: isVercel
+        ? puppeteer.defaultArgs({ args: chromium.args, headless: headlessMode })
+        : puppeteer.defaultArgs({ headless: true }),
       executablePath,
-      headless: headlessMode
+      channel: isVercel || executablePath ? undefined : "chrome",
+      headless: isVercel ? headlessMode : true
     });
 
     const page = await browser.newPage();
