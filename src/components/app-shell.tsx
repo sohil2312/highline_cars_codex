@@ -18,17 +18,17 @@ export function AppShell({
           <p className="text-xs uppercase tracking-widest">Highline Cars</p>
           <h1 className="text-lg font-semibold">Inspection Console</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
+        <div className="flex w-full flex-wrap items-center gap-2 min-w-0 md:w-auto md:justify-end">
           {userEmail ? (
             <span className="text-xs text-neutral-600 max-w-[180px] truncate">{userEmail}</span>
           ) : null}
           <SettingsTrigger />
           <Link href="/inspections/new">
-            <Button size="sm">New Inspection</Button>
+            <Button className="h-11">New Inspection</Button>
           </Link>
           <SignOutButton />
         </div>
-        <nav className="flex w-full gap-2 overflow-x-auto text-base md:hidden">
+        <nav className="grid w-full grid-cols-2 gap-2 text-base md:hidden">
           <Link href="/dashboard" className="brutal-border bg-white px-3 py-2 whitespace-nowrap">
             Dashboard
           </Link>

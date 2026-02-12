@@ -27,7 +27,7 @@ export function SettingsTrigger() {
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)} title="Settings">
+      <Button variant="outline" className="h-11 w-11 px-0" onClick={() => setOpen(true)} title="Settings">
         <Settings className="h-4 w-4" />
       </Button>
       <SettingsModal open={open} onOpenChange={setOpen} isAdmin={isAdmin} />

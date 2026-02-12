@@ -25,6 +25,13 @@ const nextConfig = {
       "@sparticuz/chromium"
     ]
   },
+  webpack: (config, { dev }) => {
+    // Avoid intermittent missing chunk/module errors from filesystem cache in local dev.
+    if (dev) {
+      config.cache = false;
+    }
+    return config;
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: getGitSha()
   }

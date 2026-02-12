@@ -151,6 +151,30 @@ function generateInspectionCode() {
   return `HL-${stamp}`;
 }
 
+const legacyInspectionColumns = [
+  "body_type",
+  "vin",
+  "transmission",
+  "stock_photo_path"
+] as const;
+
+function isMissingColumnError(error: { code?: string | null; message?: string | null } | null, column: string) {
+  if (!error) return false;
+  return error.code === "PGRST204" && (error.message ?? "").includes(`'${column}'`);
+}
+
+function hasLegacyInspectionMismatch(error: { code?: string | null; message?: string | null } | null) {
+  return legacyInspectionColumns.some((column) => isMissingColumnError(error, column));
+}
+
+function toLegacyInspectionPayload<T extends Record<string, unknown>>(payload: T) {
+  const next = { ...payload };
+  for (const column of legacyInspectionColumns) {
+    delete next[column];
+  }
+  return next;
+}
+
 export function InspectionForm({
   initialInspectionId,
   finalizeOnLoad
@@ -175,8 +199,48 @@ export function InspectionForm({
   const [shareProfile, setShareProfile] = useState<"full" | "customer" | "summary">("full");
   const [status, setStatus] = useState<"Draft" | "Final">("Draft");
   const [message, setMessage] = useState<string | null>(null);
+  const [supportsInspectionV2, setSupportsInspectionV2] = useState<boolean | null>(null);
+  const [supportsShareProfile, setSupportsShareProfile] = useState<boolean | null>(null);
 
   const isEditing = Boolean(inspectionId);
+
+  const handleBodyTypeDetected = useCallback((bodyType: string) => {
+    setVehicle((prev) =>
+      prev.body_type === bodyType
+        ? prev
+        : { ...prev, body_type: bodyType }
+    );
+  }, []);
+
+  useEffect(() => {
+    const detectSchemaCapabilities = async () => {
+      const supabase = createClient();
+
+      const { data: inspectionSample } = await supabase
+        .from("inspections")
+        .select("*")
+        .limit(1);
+
+      if (inspectionSample && inspectionSample.length > 0) {
+        setSupportsInspectionV2(
+          Object.prototype.hasOwnProperty.call(inspectionSample[0], "body_type")
+        );
+      }
+
+      const { data: shareSample } = await supabase
+        .from("report_shares")
+        .select("*")
+        .limit(1);
+
+      if (shareSample && shareSample.length > 0) {
+        setSupportsShareProfile(
+          Object.prototype.hasOwnProperty.call(shareSample[0], "profile")
+        );
+      }
+    };
+
+    detectSchemaCapabilities();
+  }, []);
 
   useEffect(() => {
     const loadExisting = async () => {
@@ -435,11 +499,28 @@ export function InspectionForm({
       created_by: authData.user?.id ?? null
     };
 
-    const { data, error } = await supabase
+    let createResult = await supabase
       .from("inspections")
-      .insert(payload)
+      .insert(supportsInspectionV2 === false ? toLegacyInspectionPayload(payload) : payload)
       .select("id, inspection_code")
       .single();
+
+    if (createResult.error && supportsInspectionV2 !== false && hasLegacyInspectionMismatch(createResult.error)) {
+      setSupportsInspectionV2(false);
+      createResult = await supabase
+        .from("inspections")
+        .insert(toLegacyInspectionPayload(payload))
+        .select("id, inspection_code")
+        .single();
+
+      if (!createResult.error) {
+        setMessage("Saved with legacy DB schema. Run src/db/migration-v2.sql for full features.");
+      }
+    } else if (!createResult.error && supportsInspectionV2 === null) {
+      setSupportsInspectionV2(true);
+    }
+
+    const { data, error } = createResult;
 
     if (error || !data) {
       // Offline fallback — save to IndexedDB
@@ -466,7 +547,7 @@ export function InspectionForm({
     setInspectionId(data.id);
     setInspectionCode(data.inspection_code);
     return data.id as string;
-  }, [inspectionId, inspectionCode, vehicle, legal, items, marketValue, scoreOutput, rcFront?.path, rcBack?.path, stockPhoto?.path]);
+  }, [inspectionId, inspectionCode, vehicle, legal, items, marketValue, scoreOutput, rcFront?.path, rcBack?.path, stockPhoto?.path, supportsInspectionV2]);
 
   const saveDraft = useCallback(
     async (nextStatus: "Draft" | "Final" = "Draft") => {
@@ -491,6 +572,7 @@ export function InspectionForm({
         year_of_manufacture: vehicle.year_of_manufacture ? Number(vehicle.year_of_manufacture) : null,
         mileage_km: vehicle.mileage_km ? Number(vehicle.mileage_km) : null,
         fuel_type: vehicle.fuel_type || null,
+        transmission: vehicle.transmission || null,
         color: vehicle.color || null,
         owners_count: vehicle.owners_count || null,
         customer_name: vehicle.customer_name || null,
@@ -502,6 +584,7 @@ export function InspectionForm({
         market_value: marketValue ? Number(marketValue) : null,
         rc_front_path: rcFront?.path ?? null,
         rc_back_path: rcBack?.path ?? null,
+        stock_photo_path: stockPhoto?.path ?? null,
         health_score: scoreOutput.healthScore,
         recommendation: scoreOutput.recommendation,
         exposure_percent: scoreOutput.exposurePercent,
@@ -509,10 +592,26 @@ export function InspectionForm({
         total_repair_max: scoreOutput.totalRepairMax
       };
 
-      const { error: updateError } = await supabase
+      let updateResult = await supabase
         .from("inspections")
-        .update(payload)
+        .update(supportsInspectionV2 === false ? toLegacyInspectionPayload(payload) : payload)
         .eq("id", id);
+
+      if (updateResult.error && supportsInspectionV2 !== false && hasLegacyInspectionMismatch(updateResult.error)) {
+        setSupportsInspectionV2(false);
+        updateResult = await supabase
+          .from("inspections")
+          .update(toLegacyInspectionPayload(payload))
+          .eq("id", id);
+
+        if (!updateResult.error) {
+          setMessage("Saved with legacy DB schema. Run src/db/migration-v2.sql for full features.");
+        }
+      } else if (!updateResult.error && supportsInspectionV2 === null) {
+        setSupportsInspectionV2(true);
+      }
+
+      const updateError = updateResult.error;
 
       if (updateError) {
         setMessage(updateError.message);
@@ -584,7 +683,7 @@ export function InspectionForm({
       setSaving(false);
       setMessage(nextStatus === "Final" ? "Inspection finalized." : "Draft saved.");
     },
-    [ensureInspection, items, legal, marketValue, scoreOutput, vehicle, rcFront?.path, rcBack?.path, stockPhoto?.path]
+    [ensureInspection, items, legal, marketValue, scoreOutput, vehicle, rcFront?.path, rcBack?.path, stockPhoto?.path, supportsInspectionV2]
   );
 
   useEffect(() => {
@@ -708,7 +807,24 @@ export function InspectionForm({
       setMessage(uploadError.message);
       return;
     }
-    await supabase.from("inspections").update({ stock_photo_path: path }).eq("id", id);
+    let stockPathError: { code?: string | null; message?: string | null } | null = null;
+    if (supportsInspectionV2 !== false) {
+      const result = await supabase
+        .from("inspections")
+        .update({ stock_photo_path: path })
+        .eq("id", id);
+      stockPathError = result.error;
+    }
+
+    if (stockPathError && !isMissingColumnError(stockPathError, "stock_photo_path")) {
+      setMessage(stockPathError.message ?? "Failed to save stock photo path.");
+      return;
+    }
+
+    if (isMissingColumnError(stockPathError, "stock_photo_path")) {
+      setSupportsInspectionV2(false);
+      setMessage("Photo uploaded. Apply src/db/migration-v2.sql to store stock photo in reports.");
+    }
     const { data: publicData } = supabase.storage.from("inspection-media").getPublicUrl(path);
     setStockPhoto({ url: publicData.publicUrl, type: "photo", path });
   };
@@ -783,9 +899,21 @@ export function InspectionForm({
     if (!id) return;
 
     const token = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const { error } = await supabase
+    const sharePayload = { inspection_id: id, token, allow_pdf: allowPdf };
+    let insertShare = await supabase
       .from("report_shares")
-      .insert({ inspection_id: id, token, allow_pdf: allowPdf, profile: shareProfile });
+      .insert(supportsShareProfile === false ? sharePayload : { ...sharePayload, profile: shareProfile });
+
+    if (isMissingColumnError(insertShare.error, "profile")) {
+      setSupportsShareProfile(false);
+      insertShare = await supabase
+        .from("report_shares")
+        .insert(sharePayload);
+    } else if (!insertShare.error && supportsShareProfile === null) {
+      setSupportsShareProfile(true);
+    }
+
+    const error = insertShare.error;
 
     if (error) {
       setMessage(error.message);
@@ -864,7 +992,7 @@ export function InspectionForm({
                 onMakeChange={(value) => setVehicle((prev) => ({ ...prev, make: value }))}
                 onModelChange={(value) => setVehicle((prev) => ({ ...prev, model: value }))}
                 onVariantChange={(value) => setVehicle((prev) => ({ ...prev, variant: value }))}
-                onBodyTypeDetected={(bt) => setVehicle((prev) => ({ ...prev, body_type: bt }))}
+                onBodyTypeDetected={handleBodyTypeDetected}
               />
               <div>
                 <label className="text-sm font-medium">Year of Manufacturing</label>

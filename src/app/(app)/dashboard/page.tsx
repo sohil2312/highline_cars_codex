@@ -66,7 +66,7 @@ export default async function DashboardPage({
           inspections.map((row) => (
             <Card key={row.id} className="p-4">
               <div className="flex items-center justify-between">
-                <Link className="underline text-sm" href={`/inspections/${row.id}`}>
+                <Link className="inline-flex min-h-11 items-center underline text-sm font-medium" href={`/inspections/${row.id}`}>
                   {row.inspection_code ?? row.id.slice(0, 8)}
                 </Link>
                 <span className="text-xs text-neutral-600">{formatDate(row.created_at)}</span>
